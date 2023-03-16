@@ -4,5 +4,6 @@ public enum ServerToClientMessageType
 	RoomList,
 	RoomDetails,
 	CreateRoomFailure,
-	Ping
+	Ping,
+	JoinRoomFailure
 }

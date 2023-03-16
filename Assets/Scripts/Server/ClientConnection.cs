@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -24,13 +25,8 @@ public class ClientConnection
 	public readonly ulong ClientID;
 	public string ClientName;
 	public int GemIndex;
-	
-	public ConcurrentQueue<ServerToClientMessage> MessagesToSend = new ConcurrentQueue<ServerToClientMessage>();
 
-	public bool Valid()
-	{
-		return _client is { Connected: true };
-	}
+	public ConcurrentQueue<ServerToClientMessage> MessagesToSend = new ConcurrentQueue<ServerToClientMessage>();
 
 	public ClientConnection(TcpClient client)
 	{
@@ -67,6 +63,7 @@ public class ClientConnection
 				{
 					if (MessagesToSend.TryDequeue(out var message))
 					{
+						Debug.Log($"Sending message to client {ClientID}[{ClientName}] - {message.MessageType}");
 						byte[] messageBytes = SerializationUtility.SerializeValue(message, DataFormat.JSON);
 						string json = Encoding.UTF8.GetString(messageBytes).Replace(Environment.NewLine, "");
 						await sw.WriteLineAsync(json);
@@ -74,7 +71,7 @@ public class ClientConnection
 					}
 				}
 
-				while (stream.CanRead)
+				while (stream.DataAvailable)
 				{
 					string json = await sr.ReadLineAsync();
 					if (json == null)
@@ -94,27 +91,49 @@ public class ClientConnection
 							{
 								roomList.RemoveAll(x => x.Clients.Count < 2);
 							}
-
 							MessagesToSend.Enqueue(ServerToClientMessage.RoomList(roomList));
 							break;
 						case ClientToServerMessageType.CreateRoomRequest:
-							var room = RoomManager.CreateRoom(this);
-							MessagesToSend.Enqueue(room != null
-								? ServerToClientMessage.RoomDetails(room.RoomID)
+							Debug.Log($"Client {ClientID}[{ClientName}] requested to create room");
+							var createdRoom = RoomManager.CreateRoom(this);
+							MessagesToSend.Enqueue(createdRoom != null
+								? ServerToClientMessage.RoomDetails(createdRoom.RoomID)
 								: ServerToClientMessage.CreateRoomFailure());
 							break;
 						case ClientToServerMessageType.JoinRoomRequest:
+							ulong roomID = ulong.Parse(message.MessageData);
+							var roomToJoin = RoomManager.GetRoomDetails(roomID);
+							if (roomToJoin == null)
+							{
+								Debug.Log($"Client {ClientID}[{ClientName}] requested to join non-existent room [{roomID}]");
+								MessagesToSend.Enqueue(ServerToClientMessage.JoinRoomFailure());
+							}
+							else if (roomToJoin.Clients.Count == 2)
+							{
+								Debug.Log($"Client {ClientID}[{ClientName}] tried to join full room");
+								MessagesToSend.Enqueue(ServerToClientMessage.JoinRoomFailure());
+							}
+							else
+							{
+								Debug.Log($"Client {ClientID}[{ClientName}] joined room {roomID}");
+								MessagesToSend.Enqueue(roomToJoin.Clients.TryAdd(1, this)
+									? ServerToClientMessage.RoomDetails(roomID)
+									: ServerToClientMessage.JoinRoomFailure());
+							}
 							break;
 						case ClientToServerMessageType.Move:
 							break;
 						case ClientToServerMessageType.WelcomeMessage:
 							byte[] messageDataBytes = Encoding.UTF8.GetBytes(message.MessageData);
-							ClientWelcomeMessageData welcomeMessageData = SerializationUtility.DeserializeValue<ClientWelcomeMessageData>(messageDataBytes, DataFormat.JSON);
+							ClientWelcomeMessageData welcomeMessageData =
+								SerializationUtility.DeserializeValue<ClientWelcomeMessageData>(messageDataBytes,
+									DataFormat.JSON);
 							ClientName = welcomeMessageData.ClientName;
 							GemIndex = welcomeMessageData.GemIndex;
 							Debug.Log($"Client {ClientID} is now known as {ClientName}");
 							break;
 						case ClientToServerMessageType.Pong:
+							Debug.Log($"Received pong from {ClientID}[{ClientName}]");
 							lastPong = Timer.TimeSinceStartup;
 							break;
 						default:
@@ -125,9 +144,13 @@ public class ClientConnection
 				await Task.Delay(50);
 			}
 		}
+		catch(IOException ioException)
+		{
+			Debug.Log($"IO exception on Client {ClientID}[{ClientName}], disconnecting: {ioException}");
+		}
 		catch (SocketException socketException)
 		{
-			Debug.Log($"Socket exception on Client {ClientID}[{ClientName}], disconnecting");
+			Debug.Log($"Socket exception on Client {ClientID}[{ClientName}], disconnecting: {socketException}");
 		}
 		catch (Exception e)
 		{

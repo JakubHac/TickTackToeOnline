@@ -15,17 +15,21 @@ public class Client : MonoBehaviour
 	[SerializeField] private UIView MenuUIView;
 	[SerializeField] private UIView ConnectingUIView;
 	[SerializeField] private UIView RoomListUIView;
+	[SerializeField] private UIView EnteringRoomUIView;
+	[SerializeField] private UIView RoomUIView;
 	[SerializeField] private Settings Settings;
 	
 	[SerializeField] private Transform RoomListContent;
 	[SerializeField] private GameObject RoomDisplayPrefab;
 
-	TcpClient client = new TcpClient();
+	TcpClient client;
 	public static ConcurrentQueue<ClientToServerMessage> MessagesToSend = new();
 	private ulong ID;
 
 	public void ConnectToServer()
 	{
+		client ??= new TcpClient();
+		
 		if (client.Connected) return;
 		MessagesToSend.Clear();
 		MenuUIView.Hide();
@@ -58,11 +62,10 @@ public class Client : MonoBehaviour
 
 		try
 		{
-			while (client.Connected)
+			while (true)
 			{
 				if (lastPing + 10 < Timer.TimeSinceStartup)
 				{
-					client.Close();
 					Debug.Log("Server timed out");
 					break;
 				}
@@ -71,6 +74,7 @@ public class Client : MonoBehaviour
 				{
 					if (MessagesToSend.TryDequeue(out var message))
 					{
+						Debug.Log($"Sending message {message.MessageType}");
 						byte[] messageBytes = SerializationUtility.SerializeValue(message, DataFormat.JSON);
 						string json = Encoding.UTF8.GetString(messageBytes).Replace(Environment.NewLine, "");
 						await sw.WriteLineAsync(json);
@@ -78,7 +82,7 @@ public class Client : MonoBehaviour
 					}
 				}
 
-				while (stream.CanRead)
+				while (stream.DataAvailable)
 				{
 					string json = await sr.ReadLineAsync();
 					if (json == null)
@@ -92,19 +96,31 @@ public class Client : MonoBehaviour
 					switch (serverMessage.MessageType)
 					{
 						case ServerToClientMessageType.WelcomeMessage:
+							Debug.Log("Received welcome message");
 							ID = ulong.Parse(serverMessage.MessageData);
 							break;
 						case ServerToClientMessageType.RoomList:
+							Debug.Log("Received room list");
 							var holderBytes = Encoding.UTF8.GetBytes(serverMessage.MessageData);
 							var holder =
 								SerializationUtility.DeserializeValue<RoomListHolder>(holderBytes, DataFormat.JSON);
 							HandleRoomList(holder);
 							break;
 						case ServerToClientMessageType.RoomDetails:
+							Debug.Log("Received room details");
+							RoomListUIView.Hide();
+							EnteringRoomUIView.Hide();
+							RoomUIView.Show();
 							break;
 						case ServerToClientMessageType.CreateRoomFailure:
+						case ServerToClientMessageType.JoinRoomFailure:
+							Debug.Log("Failed to create/join room");
+							EnteringRoomUIView.Hide();
+							RoomUIView.Hide();
+							RoomListUIView.Show();
 							break;
 						case ServerToClientMessageType.Ping:
+							lastPing = Timer.TimeSinceStartup;
 							MessagesToSend.Enqueue(ClientToServerMessage.Pong());
 							break;
 						default:
@@ -117,11 +133,11 @@ public class Client : MonoBehaviour
 		}
 		catch (IOException ioException)
 		{
-			Debug.Log("IO exception, disconnecting");
+			Debug.Log("IO exception, disconnecting: " + ioException);
 		}
 		catch (SocketException socketException)
 		{
-			Debug.Log("Socket exception, disconnecting");
+			Debug.Log("Socket exception, disconnecting" + socketException);
 		}
 		catch (Exception e)
 		{
@@ -131,12 +147,14 @@ public class Client : MonoBehaviour
 		finally
 		{
 			client?.Close();
+			client = null;
 		}
 	}
 
 	public void DisconnectFromServer()
 	{
-		client.Close();
+		client?.Close();
+		client = null;
 		RoomListUIView.Hide();
 		MenuUIView.Show();
 	}
@@ -160,5 +178,12 @@ public class Client : MonoBehaviour
 			var roomDisplay = Instantiate(RoomDisplayPrefab, RoomListContent).GetComponent<RoomDisplay>();
 			roomDisplay.SetRoomData(roomData);
 		}
+	}
+	
+	public void RequestCreateRoom()
+	{
+		RoomListUIView.Hide();
+		EnteringRoomUIView.Show();
+		MessagesToSend.Enqueue(ClientToServerMessage.CreateRoomRequest());
 	}
 }

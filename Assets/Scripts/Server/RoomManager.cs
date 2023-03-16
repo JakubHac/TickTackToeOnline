@@ -40,6 +40,7 @@ public class RoomManager
         return null;
     }
 
+    [CanBeNull]
     public static RoomData GetRoomDetails(ulong roomID)
     {
         if (Rooms.TryGetValue(roomID, out var roomData))

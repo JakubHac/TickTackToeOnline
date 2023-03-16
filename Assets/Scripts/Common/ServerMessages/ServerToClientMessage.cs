@@ -44,4 +44,11 @@ public class ServerToClientMessage
     {
         return PingMessage;
     }
+    
+    private static readonly ServerToClientMessage JoinRoomFailureMessage = new(ServerToClientMessageType.JoinRoomFailure, string.Empty);
+
+    public static ServerToClientMessage JoinRoomFailure()
+    {
+        return JoinRoomFailureMessage;
+    }
 }
