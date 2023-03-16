@@ -108,9 +108,9 @@ public class Client : MonoBehaviour
 							break;
 						case ServerToClientMessageType.RoomDetails:
 							Debug.Log("Received room details");
-							RoomListUIView.Hide();
-							EnteringRoomUIView.Hide();
-							RoomUIView.Show();
+							var roomBytes = Encoding.UTF8.GetBytes(serverMessage.MessageData);
+							var room = SerializationUtility.DeserializeValue<RoomData>(roomBytes, DataFormat.JSON);
+							HandleRoomJoin(room);
 							break;
 						case ServerToClientMessageType.CreateRoomFailure:
 						case ServerToClientMessageType.JoinRoomFailure:
@@ -185,5 +185,17 @@ public class Client : MonoBehaviour
 		RoomListUIView.Hide();
 		EnteringRoomUIView.Show();
 		MessagesToSend.Enqueue(ClientToServerMessage.CreateRoomRequest());
+	}
+	
+	private void HandleRoomJoin(RoomData roomData)
+	{
+		RoomListUIView.Hide();
+		EnteringRoomUIView.Hide();
+		RoomUIView.Show();
+	}
+	
+	private void HandleGameStart()
+	{
+		
 	}
 }

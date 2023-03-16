@@ -89,7 +89,7 @@ public class ClientConnection
 							var roomList = RoomManager.GetRoomList();
 							if (message.MessageData == "NonFull")
 							{
-								roomList.RemoveAll(x => x.Clients.Count < 2);
+								roomList.RemoveAll(x => x.Clients.Count >= 2);
 							}
 							MessagesToSend.Enqueue(ServerToClientMessage.RoomList(roomList));
 							break;
@@ -119,6 +119,9 @@ public class ClientConnection
 								MessagesToSend.Enqueue(roomToJoin.Clients.TryAdd(1, this)
 									? ServerToClientMessage.RoomDetails(roomID)
 									: ServerToClientMessage.JoinRoomFailure());
+								
+								roomToJoin.playersGems.Add(1, GemIndex);
+								roomToJoin.SignalClientsToStart();
 							}
 							break;
 						case ClientToServerMessageType.Move:
@@ -165,5 +168,10 @@ public class ClientConnection
 				_client = null;
 			}
 		}
+	}
+
+	public void SendGameMessage(RoomData roomData)
+	{
+		MessagesToSend.Enqueue(ServerToClientMessage.SendGame(roomData));
 	}
 }

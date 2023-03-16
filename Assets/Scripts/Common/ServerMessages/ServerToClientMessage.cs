@@ -51,4 +51,11 @@ public class ServerToClientMessage
     {
         return JoinRoomFailureMessage;
     }
+
+    public static ServerToClientMessage SendGame(RoomData roomData)
+    {
+        byte[] data = SerializationUtility.SerializeValue(new GameHolder(roomData), DataFormat.JSON);
+        string messageData = Encoding.UTF8.GetString(data);
+        return new ServerToClientMessage(ServerToClientMessageType.Game, messageData);
+    }
 }
