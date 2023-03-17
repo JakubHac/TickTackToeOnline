@@ -12,9 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 1726182683, guid: a4865f1ab4504ed8a368670db22f409c, type: 3}
   m_Name: AOTGenerationConfig
   m_EditorClassIdentifier: 
-  automateBeforeBuilds: 0
+  automateBeforeBuilds: 1
   deleteDllAfterBuilds: 1
   AutomateForAllAOTPlatforms: 1
   automateForPlatforms: 0900000014000000
-  lastScan: 0
-  supportSerializedTypes: []
+  lastScan: 638146961105708155
+  supportSerializedTypes:
+  - TypeName: System.UInt64[], mscorlib
+    IsCustom: 1
+    Emit: 1
+  - TypeName: System.Collections.Generic.List`1[[UnityEngine.Sprite[], UnityEngine.CoreModule]],
+      mscorlib
+    IsCustom: 0
+    Emit: 1
+  - TypeName: UnityEngine.Sprite, UnityEngine.CoreModule
+    IsCustom: 0
+    Emit: 1
+  - TypeName: UnityEngine.Sprite[], UnityEngine.CoreModule
+    IsCustom: 0
+    Emit: 1

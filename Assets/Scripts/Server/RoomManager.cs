@@ -4,14 +4,21 @@ using JetBrains.Annotations;
 
 public class RoomManager
 {
-    private static ulong nextRoomID = 0;
+    private static ulong nextRoomID = 1;
     private static object roomIDLock = new object();
 
     public static ulong GetNextRoomID()
     {
         lock (roomIDLock)
         {
-            return nextRoomID++;
+            ulong result = nextRoomID;
+            if (result == 0)
+            {
+                result = 1;
+                nextRoomID = 1;
+            }
+            nextRoomID++;
+            return result;
         }
     }
     

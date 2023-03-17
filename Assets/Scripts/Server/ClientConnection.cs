@@ -10,14 +10,24 @@ using UnityEngine;
 
 public class ClientConnection
 {
-	private static ulong nextClientID = 0;
+	private static ulong nextClientID = 1;
 	private static object clientIDLock = new object();
 
 	public static ulong GetNextClientID()
 	{
 		lock (clientIDLock)
 		{
-			return nextClientID++;
+			var result = nextClientID;
+			if (result == 0)
+			{
+				result = 1;
+				nextClientID = 2;
+			}
+			else
+			{
+				nextClientID++;
+			}
+			return result;
 		}
 	}
 
@@ -116,15 +126,27 @@ public class ClientConnection
 							else
 							{
 								Debug.Log($"Client {ClientID}[{ClientName}] joined room {roomID}");
-								MessagesToSend.Enqueue(roomToJoin.Clients.TryAdd(1, this)
-									? ServerToClientMessage.RoomDetails(roomID)
-									: ServerToClientMessage.JoinRoomFailure());
-								
-								roomToJoin.playersGems.Add(1, GemIndex);
-								roomToJoin.SignalClientsToStart();
+
+								bool joinSuccess = roomToJoin.Clients.TryAdd(1, this);
+								if (joinSuccess)
+								{
+									roomToJoin.playersGems.Add(ClientID, GemIndex);
+									roomToJoin.SendGameDataToClients();
+								}
+								else
+								{
+									MessagesToSend.Enqueue(ServerToClientMessage.JoinRoomFailure());
+								}
 							}
 							break;
 						case ClientToServerMessageType.Move:
+							byte[] moveDataBytes = Encoding.UTF8.GetBytes(message.MessageData);
+							var moveData = SerializationUtility.DeserializeValue<MoveHolder>(moveDataBytes, DataFormat.JSON);
+							var room = RoomManager.GetRoomDetails(moveData.RoomID);
+							if (room != null)
+							{
+								room.HandleMove(moveData, ClientID);
+							}
 							break;
 						case ClientToServerMessageType.WelcomeMessage:
 							byte[] messageDataBytes = Encoding.UTF8.GetBytes(message.MessageData);

@@ -21,10 +21,11 @@ public class Client : MonoBehaviour
 	
 	[SerializeField] private Transform RoomListContent;
 	[SerializeField] private GameObject RoomDisplayPrefab;
+	[SerializeField] private RoomGameplayController GameplayController;
 
 	TcpClient client;
 	public static ConcurrentQueue<ClientToServerMessage> MessagesToSend = new();
-	private ulong ID;
+	public ulong ID;
 
 	public void ConnectToServer()
 	{
@@ -123,6 +124,12 @@ public class Client : MonoBehaviour
 							lastPing = Timer.TimeSinceStartup;
 							MessagesToSend.Enqueue(ClientToServerMessage.Pong());
 							break;
+						case ServerToClientMessageType.Game:
+							Debug.Log("Received Game Update");
+							byte[] gameBytes = Encoding.UTF8.GetBytes(serverMessage.MessageData);
+							var game = SerializationUtility.DeserializeValue<GameHolder>(gameBytes, DataFormat.JSON);
+							HandleGame(game);
+							break;
 						default:
 							throw new ArgumentOutOfRangeException();
 					}
@@ -192,10 +199,20 @@ public class Client : MonoBehaviour
 		RoomListUIView.Hide();
 		EnteringRoomUIView.Hide();
 		RoomUIView.Show();
+		GameplayController.UpdateState(roomData, true);
 	}
 	
-	private void HandleGameStart()
+	private void HandleGame(GameHolder gameHolder)
 	{
-		
+		RoomListUIView.Hide();
+		EnteringRoomUIView.Hide();
+		RoomUIView.Show();
+		var roomData = gameHolder.RoomData;
+		GameplayController.UpdateState(roomData, false);
+	}
+
+	public void SendMove(int x, int y, ulong roomID)
+	{
+		MessagesToSend.Enqueue(ClientToServerMessage.Move(x, y, roomID));
 	}
 }

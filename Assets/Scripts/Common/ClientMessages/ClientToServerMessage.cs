@@ -40,4 +40,11 @@ public class ClientToServerMessage
     {
         return PongMessage;
     }
+
+    public static ClientToServerMessage Move(int x, int y, ulong roomID)
+    {
+        var move = new MoveHolder(x, y, roomID);
+        byte[] data = SerializationUtility.SerializeValue(move, DataFormat.JSON);
+        return new ClientToServerMessage(ClientToServerMessageType.Move, Encoding.UTF8.GetString(data));
+    }
 }

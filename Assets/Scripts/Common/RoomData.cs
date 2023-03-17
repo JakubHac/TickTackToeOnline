@@ -9,8 +9,8 @@ public class RoomData
     public readonly string HostName;
     public readonly ulong HostID;
     [NonSerialized] public ConcurrentDictionary<int, ClientConnection> Clients = new();
-    public readonly byte[][] board = new byte[3][];
-    public Dictionary<int, int> playersGems = new ();
+    public readonly ulong[][] board = new ulong[3][];
+    public Dictionary<ulong, int> playersGems = new ();
     public int turn = -1;
     
     public RoomData(ulong roomID, ClientConnection hostClient)
@@ -20,17 +20,17 @@ public class RoomData
         HostID = hostClient.ClientID;
         for (int i = 0; i < 3; i++)
         {
-            board[i] = new byte[3];
+            board[i] = new ulong[3];
         }
         
-        playersGems.Add(0, hostClient.GemIndex);
+        playersGems.Add(hostClient.ClientID, hostClient.GemIndex);
         while (!Clients.TryAdd(0, hostClient))
         {
             
         }
     }
 
-    public void SignalClientsToStart()
+    public void SendGameDataToClients()
     {
         if (Clients.Count == 2)
         {
@@ -39,6 +39,25 @@ public class RoomData
             {
                 client.Value.SendGameMessage(this);
             }
+        }
+    }
+
+    public void HandleMove(MoveHolder moveData, ulong sender)
+    {
+        if (turn == 0 && sender == HostID)
+        {
+            board[moveData.x][moveData.y] = sender;
+            turn = 1;
+        }
+        else if (turn == 1 && sender != HostID)
+        {
+            board[moveData.x][moveData.y] = sender;
+            turn = 0;
+        }
+        
+        foreach (var client in Clients)
+        {
+            client.Value.SendGameMessage(this);
         }
     }
 }
