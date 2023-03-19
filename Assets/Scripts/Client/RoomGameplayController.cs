@@ -42,6 +42,7 @@ public class RoomGameplayController : MonoBehaviour
 				animator.SetAnimation(GemsCollection.Gems[Settings.SelectedGem]);
 				animator.enabled = true;
 				animator.SetToFirstFrame();
+				animator.AllowedLoops = -1;
 				Image image = animator.GetComponentInChildren<Image>();
 				image.enabled = true;
 				image.material = OurGemsMaterial;
