@@ -17,6 +17,13 @@ public class ImageAnimator : MonoBehaviour
 		currentFrame = 0;
 		timeSinceLastFrame = 0;
 	}
+	
+	public void SetToFirstFrame()
+	{
+		currentFrame = 0;
+		timeSinceLastFrame = 0;
+		Target.sprite = AnimationFrames[0];
+	}
 
 	private void Update()
 	{

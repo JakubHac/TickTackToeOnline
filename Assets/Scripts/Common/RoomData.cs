@@ -12,7 +12,7 @@ public class RoomData
     public readonly ulong[][] board = new ulong[3][];
     public Dictionary<ulong, int> playersGems = new ();
     public int turn = -1;
-    
+
     public RoomData(ulong roomID, ClientConnection hostClient)
     {
         RoomID = roomID;

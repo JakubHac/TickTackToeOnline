@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 
 public class RoomManager
@@ -55,5 +56,37 @@ public class RoomManager
             return roomData;
         }
         return null;
+    }
+
+    public static void HandleClientQuitRoom(ulong clientID)
+    {
+        List<RoomData> rooms = new();
+        foreach (var room in Rooms)
+        {
+            if (room.Value.Clients.Values.Any(x => x.ClientID == clientID))
+            {
+                rooms.Add(room.Value);
+            }
+        }
+
+        foreach (var room in rooms)
+        {
+            if (room.HostID == clientID)
+            {
+                if (room.Clients.TryGetValue(1, out var guestClient))
+                {
+                    guestClient.SendGameWin(room.RoomID);
+                }
+            }
+            else
+            {
+                if (room.Clients.TryGetValue(0, out var hostClient))
+                {
+                    hostClient.SendGameWin(room.RoomID);
+                }
+            }
+            Rooms.TryRemove(room.RoomID, out _);
+        }
+        
     }
 }

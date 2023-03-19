@@ -13,12 +13,12 @@ public class PerspectiveBoardState
     }
     
     
-    public PerspectiveBoardState(RoomData game, Client client)
+    public PerspectiveBoardState(RoomData game, Client client, bool instantWin = false)
     {
         Game = game;
         Client = client;
-        State = BoardState.NotResolved;
-        if (Game.playersGems.Count == 1)
+        State = instantWin ? BoardState.WeWon : BoardState.NotResolved;
+        if (State == BoardState.NotResolved && Game.playersGems.Count == 1)
         {
             State = BoardState.WaitingForPlayer;
         }

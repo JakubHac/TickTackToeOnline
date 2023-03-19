@@ -47,4 +47,11 @@ public class ClientToServerMessage
         byte[] data = SerializationUtility.SerializeValue(move, DataFormat.JSON);
         return new ClientToServerMessage(ClientToServerMessageType.Move, Encoding.UTF8.GetString(data));
     }
+
+    private static readonly ClientToServerMessage QuitRoomMessage = new(ClientToServerMessageType.QuitRoom, string.Empty);
+    
+    public static ClientToServerMessage QuitRoom()
+    {
+        return QuitRoomMessage;
+    }
 }

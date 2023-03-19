@@ -58,4 +58,10 @@ public class ServerToClientMessage
         string messageData = Encoding.UTF8.GetString(data);
         return new ServerToClientMessage(ServerToClientMessageType.Game, messageData);
     }
+    
+
+    public static ServerToClientMessage InstantWin(ulong roomId)
+    {
+        return new(ServerToClientMessageType.InstantWin, roomId.ToString());
+    }
 }

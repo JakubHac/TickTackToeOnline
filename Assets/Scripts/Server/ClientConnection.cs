@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -131,6 +130,7 @@ public class ClientConnection
 								if (joinSuccess)
 								{
 									roomToJoin.playersGems.Add(ClientID, GemIndex);
+									MessagesToSend.Enqueue(ServerToClientMessage.RoomDetails(roomID));
 									roomToJoin.SendGameDataToClients();
 								}
 								else
@@ -161,6 +161,9 @@ public class ClientConnection
 							Debug.Log($"Received pong from {ClientID}[{ClientName}]");
 							lastPong = Timer.TimeSinceStartup;
 							break;
+						case ClientToServerMessageType.QuitRoom:
+							RoomManager.HandleClientQuitRoom(ClientID);
+							break;
 						default:
 							throw new ArgumentOutOfRangeException();
 					}
@@ -184,6 +187,7 @@ public class ClientConnection
 		finally
 		{
 			Debug.Log($"Client {ClientID}[{ClientName}] connection closed");
+			RoomManager.HandleClientQuitRoom(ClientID);
 			if (_client != null)
 			{
 				(_client as IDisposable).Dispose();
@@ -195,5 +199,11 @@ public class ClientConnection
 	public void SendGameMessage(RoomData roomData)
 	{
 		MessagesToSend.Enqueue(ServerToClientMessage.SendGame(roomData));
+	}
+
+	
+	public void SendGameWin(ulong roomId)
+	{
+		MessagesToSend.Enqueue(ServerToClientMessage.InstantWin(roomId));
 	}
 }

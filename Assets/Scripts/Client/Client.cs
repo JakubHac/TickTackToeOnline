@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,6 +26,10 @@ public class Client : MonoBehaviour
 
 	TcpClient client;
 	public static ConcurrentQueue<ClientToServerMessage> MessagesToSend = new();
+	public static ConcurrentQueue<GameObject> ObjectsToDelete = new();
+	public static ConcurrentQueue<InstantiateData> ObjectsToInstantiate = new();
+	public static ConcurrentQueue<Action> ActionsToExecuteOnMainThread = new();
+	
 	public ulong ID;
 
 	public void ConnectToServer()
@@ -52,6 +57,25 @@ public class Client : MonoBehaviour
 			MessagesToSend.Enqueue(ClientToServerMessage.Welcome(Settings));
 			BeginServerCommunication();
 		});
+	}
+
+	private void Update()
+	{
+		while (ObjectsToDelete.TryDequeue(out var obj))
+		{
+			obj.SetActive(false);
+			Destroy(obj);
+		}
+
+		while (ObjectsToInstantiate.TryDequeue(out var instantiateData))
+		{
+			instantiateData.Execute();
+		}
+		
+		while (ActionsToExecuteOnMainThread.TryDequeue(out var action))
+		{
+			action.Invoke();
+		}
 	}
 
 	private async Task BeginServerCommunication()
@@ -130,6 +154,9 @@ public class Client : MonoBehaviour
 							var game = SerializationUtility.DeserializeValue<GameHolder>(gameBytes, DataFormat.JSON);
 							HandleGame(game);
 							break;
+						case ServerToClientMessageType.InstantWin:
+							GameplayController.InstantWin(ulong.Parse(serverMessage.MessageData));
+							break;
 						default:
 							throw new ArgumentOutOfRangeException();
 					}
@@ -174,16 +201,22 @@ public class Client : MonoBehaviour
 
 	private void HandleRoomList(RoomListHolder holder)
 	{
+		Debug.Log(holder.RoomsData.Aggregate("Rooms:", (current, roomData) => current + $"\n{roomData.name}"));
 		foreach (var roomDisplay in RoomListContent.GetComponentsInChildren<RoomDisplay>(includeInactive: false))
 		{
-			Destroy(roomDisplay.gameObject);
-			roomDisplay.gameObject.SetActive(false);
+			ObjectsToDelete.Enqueue(roomDisplay.gameObject);
+			// Destroy(roomDisplay.gameObject);
+			// roomDisplay.gameObject.SetActive(false);
 		}
-
+		
 		foreach (var roomData in holder.RoomsData)
 		{
-			var roomDisplay = Instantiate(RoomDisplayPrefab, RoomListContent).GetComponent<RoomDisplay>();
-			roomDisplay.SetRoomData(roomData);
+			ObjectsToInstantiate.Enqueue(new InstantiateData(RoomDisplayPrefab, Vector3.zero, Quaternion.identity, RoomListContent,
+				(x) =>
+				{
+					var roomDisplay = x.GetComponent<RoomDisplay>();
+					roomDisplay.SetRoomData(roomData);
+				}));
 		}
 	}
 	
@@ -209,6 +242,11 @@ public class Client : MonoBehaviour
 		RoomUIView.Show();
 		var roomData = gameHolder.RoomData;
 		GameplayController.UpdateState(roomData, false);
+	}
+
+	public void SendQuitRoom()
+	{
+		MessagesToSend.Enqueue(ClientToServerMessage.QuitRoom());
 	}
 
 	public void SendMove(int x, int y, ulong roomID)

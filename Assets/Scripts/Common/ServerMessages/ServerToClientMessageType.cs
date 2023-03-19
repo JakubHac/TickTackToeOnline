@@ -6,5 +6,6 @@ public enum ServerToClientMessageType
 	CreateRoomFailure,
 	Ping,
 	JoinRoomFailure,
-	Game
+	Game,
+	InstantWin
 }

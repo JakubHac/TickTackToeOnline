@@ -14,9 +14,10 @@ public class RoomGameplayController : MonoBehaviour
 	[SerializeField] private Client Client;
 	[SerializeField] private GameObject QuitRoomButton;
 	
-	private BoardState LastState = BoardState.NotResolved;
+	private BoardState CurrentState = BoardState.NotResolved;
 	
 	private GameObject[] GridButtons;
+	RoomData lastRoomData;
 
 	private ulong roomID;
 	
@@ -31,42 +32,58 @@ public class RoomGameplayController : MonoBehaviour
 
 	private void WaitState()
 	{
-		StateText.text = "Oczekiwanie na drugiego gracza";
-		QuitRoomButton.SetActive(true);
-		foreach (var gridButton in GridButtons)
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
 		{
-			ImageAnimator animator = gridButton.GetComponentInChildren<ImageAnimator>();
-			animator.SetAnimation(GemsCollection.Gems[Settings.SelectedGem]);
-			Image image = gridButton.GetComponentInChildren<Image>();
-			image.enabled = true;
-			image.material = OurGemsMaterial;
-			gridButton.GetComponentInChildren<Button>().interactable = false;
-		}
+			StateText.text = "Oczekiwanie na drugiego gracza";
+			QuitRoomButton.SetActive(true);
+			foreach (var gridButton in GridButtons)
+			{
+				ImageAnimator animator = gridButton.GetComponentInChildren<ImageAnimator>();
+				animator.SetAnimation(GemsCollection.Gems[Settings.SelectedGem]);
+				animator.enabled = true;
+				animator.SetToFirstFrame();
+				Image image = animator.GetComponentInChildren<Image>();
+				image.enabled = true;
+				image.material = OurGemsMaterial;
+				gridButton.GetComponentInChildren<Button>().interactable = false;
+			}
+		});
 	}
 
 	private void NotOurTurnState(PerspectiveBoardState boardState)
 	{
-		QuitRoomButton.SetActive(false);
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Ruch drugiego gracza";
+			QuitRoomButton.SetActive(false);
+		});
 		AssignGemsToGrid(boardState);
-		StateText.text = "Ruch drugiego gracza";
+	}
+
+	public void InstantWin(ulong roomID)
+	{
+		if (this.roomID != roomID) return;
+		var boardState = new PerspectiveBoardState(lastRoomData, Client, true);
+		WeWonState(boardState);
 	}
 	
 	public void UpdateState(RoomData room, bool join)
 	{
 		if (join)
 		{
+			Debug.Log($"Joined room {room.RoomID}");
 			roomID = room.RoomID;
 		}
-		else
+		else if (roomID != room.RoomID)
 		{
-			if (roomID != room.RoomID)
-			{
-				return;
-			}
+			Debug.Log($"Room id mismatch, expected {roomID} got {room.RoomID}");
+			return;
 		}
 		
+		lastRoomData = room;
 		var boardState = new PerspectiveBoardState(room, Client);
-		LastState = boardState.State;
+		CurrentState = boardState.State;
+		Debug.Log($"Entered state: {boardState.State}");
 		switch (boardState.State)
 		{
 			case BoardState.WaitingForPlayer:
@@ -92,72 +109,109 @@ public class RoomGameplayController : MonoBehaviour
 
 	private void NotResolvedState(PerspectiveBoardState boardState)
 	{ 
-		QuitRoomButton.SetActive(true);
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Coś się zepsuło";
+			QuitRoomButton.SetActive(true);
+		});
 		AssignGemsToGrid(boardState);
-		StateText.text = "Coś się zepsuło";
 	}
 
 	private void EnemyWonState(PerspectiveBoardState boardState)
 	{
-		QuitRoomButton.SetActive(true);
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Porażka";
+			QuitRoomButton.SetActive(true);
+		});
 		AssignGemsToGrid(boardState);
-		StateText.text = "Porażka";
+		roomID = 0;
 	}
 
 	private void WeWonState(PerspectiveBoardState boardState)
 	{
-		QuitRoomButton.SetActive(true);
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Zwycięstwo!";
+			QuitRoomButton.SetActive(true);
+		});
 		AssignGemsToGrid(boardState);
-		StateText.text = "Zwycięstwo!";
+		roomID = 0;
 	}
 
 	private void OurTurnState(PerspectiveBoardState boardState)
 	{
-		QuitRoomButton.SetActive(false);
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Twój ruch";
+			QuitRoomButton.SetActive(false);
+		});
 		AssignGemsToGrid(boardState);
-		StateText.text = "Twój ruch";
 	}
 
 	public void AssignGemsToGrid(PerspectiveBoardState boardState)
 	{
-		for (int i = 0; i < GridButtons.Length; i++)
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
 		{
-			int x = i % 3;
-			int y = i / 3;
-			ulong fieldOwner = boardState.Game.board[x][y];
-			var gridButton = GridButtons[i];
-			if (fieldOwner == 0)
+			for (int i = 0; i < GridButtons.Length; i++)
 			{
-				gridButton.GetComponentInChildren<Image>().enabled = false;
-				gridButton.GetComponentInChildren<ImageAnimator>().enabled = false;
-				gridButton.GetComponentInChildren<Button>().interactable = boardState.State == BoardState.OurTurn;
+				int x = i % 3;
+				int y = i / 3;
+				ulong fieldOwner = boardState.Game.board[x][y];
+				Debug.Log($"Field [{i}] owner: {fieldOwner}");
+				var gridButton = GridButtons[i];
+				var animator = gridButton.GetComponentInChildren<ImageAnimator>();
+				var gemImage = animator.GetComponentInChildren<Image>();
+				var button = gridButton.GetComponentInChildren<Button>();
+				if (fieldOwner == 0)
+				{
+					gemImage.enabled = false;
+					animator.enabled = false;
+					button.interactable = boardState.State == BoardState.OurTurn;
+				}
+				else if (fieldOwner == Client.ID)
+				{
+					animator.enabled = true;
+					animator.SetAnimation(GemsCollection.Gems[Settings.SelectedGem]);
+					if (boardState.State == BoardState.WeWon)
+					{
+						animator.AllowedLoops = -1;
+						animator.SetToFirstFrame();
+					}
+					else
+					{
+						animator.AllowedLoops = 0;
+						animator.SetToFirstFrame();
+					}
+					gemImage.enabled = true;
+					gemImage.material = OurGemsMaterial;
+					button.interactable = false;
+				}
+				else
+				{
+					animator.enabled = true;
+					animator.SetAnimation(GemsCollection.Gems[boardState.GetEnemyGemIndex()]);
+					if (boardState.State == BoardState.EnemyWon)
+					{
+						animator.AllowedLoops = -1;
+						animator.SetToFirstFrame();
+					}
+					else
+					{
+						animator.AllowedLoops = 0;
+						animator.SetToFirstFrame();
+					}
+					gemImage.enabled = true;
+					gemImage.material = EnemyGemsMaterial;
+					button.interactable = false;
+				}
 			}
-			else if (fieldOwner == Client.ID)
-			{
-				ImageAnimator animator = gridButton.GetComponentInChildren<ImageAnimator>();
-				animator.AllowedLoops = boardState.State == BoardState.WeWon ? -1 : 0;
-				animator.SetAnimation(GemsCollection.Gems[Settings.SelectedGem]);
-				Image image = gridButton.GetComponentInChildren<Image>();
-				image.enabled = true;
-				image.material = OurGemsMaterial;
-				gridButton.GetComponentInChildren<Button>().interactable = false;
-			}
-			else
-			{
-				ImageAnimator animator = gridButton.GetComponentInChildren<ImageAnimator>();
-				animator.AllowedLoops = boardState.State == BoardState.EnemyWon ? -1 : 0;
-				animator.SetAnimation(GemsCollection.Gems[boardState.GetEnemyGemIndex()]);
-				Image image = gridButton.GetComponentInChildren<Image>();
-				image.enabled = true;
-				image.material = EnemyGemsMaterial;
-				gridButton.GetComponentInChildren<Button>().interactable = false;
-			}
-		}
+		});
 	}
 	
 	public void ClickedGridButton(int getSiblingIndex)
 	{
-		if (LastState != BoardState.OurTurn) return;
+		if (CurrentState != BoardState.OurTurn) return;
 		
 		int x = getSiblingIndex % 3;
 		int y = getSiblingIndex / 3;
@@ -171,6 +225,7 @@ public class RoomGameplayController : MonoBehaviour
 	
 	public void QuitRoom()
 	{
+		Client.SendQuitRoom();
 		roomID = 0;
 	}
 }

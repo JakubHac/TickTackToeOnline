@@ -5,5 +5,6 @@ public enum ClientToServerMessageType
     JoinRoomRequest,
     Move,
     WelcomeMessage,
-    Pong
+    Pong,
+    QuitRoom
 }
