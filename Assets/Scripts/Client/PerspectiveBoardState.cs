@@ -32,6 +32,10 @@ public class PerspectiveBoardState
         {
             State = BoardState.EnemyWon;
         }
+        else if (IsDraw(Client.ID, enemyId))
+        {
+            State = BoardState.Draw;
+        }
         else if (game.HostID == Client.ID && game.turn == 0)
         {
             State = BoardState.OurTurn;
@@ -48,6 +52,17 @@ public class PerspectiveBoardState
         {
             State = BoardState.EnemyTurn;
         }
+    }
+
+    private bool IsDraw(ulong clientID, ulong enemyId1)
+    {
+        if (DidPlayerWin(clientID) || DidPlayerWin(enemyId1)) return false;
+        if (Game.board.Any(x => x.Any(y => y == 0)))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private bool DidPlayerWin(ulong playerID)

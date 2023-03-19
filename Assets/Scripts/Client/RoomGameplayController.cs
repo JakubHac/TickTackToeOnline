@@ -1,4 +1,3 @@
-using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -102,10 +101,24 @@ public class RoomGameplayController : MonoBehaviour
 			case BoardState.EnemyWon:
 				EnemyWonState(boardState);
 				break;
+			case BoardState.Draw:
+				DrawState(boardState);
+				break;
 			case BoardState.NotResolved:
 				NotResolvedState(boardState);
 				break;
 		}
+	}
+
+	private void DrawState(PerspectiveBoardState boardState)
+	{
+		Client.ActionsToExecuteOnMainThread.Enqueue(() =>
+		{
+			StateText.text = "Remis";
+			QuitRoomButton.SetActive(true);
+		});
+		AssignGemsToGrid(boardState);
+		roomID = 0;
 	}
 
 	private void NotResolvedState(PerspectiveBoardState boardState)

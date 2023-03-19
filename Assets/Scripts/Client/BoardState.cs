@@ -9,5 +9,6 @@ public enum BoardState
     EnemyTurn,
     WeWon,
     EnemyWon,
-    NotResolved
+    NotResolved,
+    Draw
 }
